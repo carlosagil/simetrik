@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package simetrik;
+
+import "google/protobuf/timestamp.proto";
+
+service ReconciliationService {
+  rpc ReconcileAndDetect(stream Transaction) returns (stream ReconciliationResponse);
+}
+
+service DashboardService {
+  rpc UpdateDashboard(ReconciliationResponse) returns (DashboardResponse);
+}
+
+message Transaction {
+  string transaction_id = 1;
+  double amount = 2;
+  string currency = 3;
+  google.protobuf.Timestamp timestamp = 4;
+}
+
+enum MatchStatus {
+  UNKNOWN = 0;
+  MATCHED = 1;
+  PARTIAL = 2;
+}
+
+enum FraudReason {
+  NONE = 0;
+  HIGH_AMOUNT = 1;
+  DUPLICATE = 2;
+}
+
+message MatchResult {
+  Transaction transaction = 1;
+  MatchStatus status = 2;
+}
+
+message FraudAlert {
+  Transaction transaction = 1;
+  FraudReason reason = 5;
+}
+
+message ReconciliationResponse {
+  oneof result {
+    MatchResult match = 1;
+    FraudAlert fraud = 2;
+  }
+}
+
+message DashboardResponse {
+  bool success = 1;
+}

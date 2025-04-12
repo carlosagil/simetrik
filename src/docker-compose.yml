@@ -1,0 +1,42 @@
+services:
+  server:
+    build: .
+    ports:
+      - "50051:50051"
+    environment:
+      - DASHBOARD_SERVICE_ADDRESS=dashboard:50052
+    networks:
+      - network
+    depends_on:
+      - dashboard
+
+  transaction:
+    build: 
+      context: .
+      dockerfile: transaction_service/Dockerfile
+    networks:
+      - network
+    depends_on:
+      - server
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: dashboard_service/Dockerfile
+    ports:
+      - "50052:50052"
+      - "3000:3000"
+      - "8080:8080"
+    networks:
+      - network
+
+networks:
+  network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.29.0.0/16
+
+volumes:
+  grpc_data:
+    driver: local

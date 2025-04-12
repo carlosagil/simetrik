@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.dashboard.name }}
+  labels:
+    {{- include "simetrik.dashboard.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.dashboard.service.type }}
+  ports:
+    {{- range .Values.dashboard.service.ports }}
+    - port: {{ .port }}
+      targetPort: {{ .targetPort }}
+      protocol: {{ .protocol }}
+      name: {{ .name }}
+    {{- end }}
+  selector:
+    app.kubernetes.io/name: {{ .Values.dashboard.name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}

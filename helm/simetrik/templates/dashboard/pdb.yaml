@@ -1,0 +1,13 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Values.dashboard.name }}
+  labels:
+    {{- include "simetrik.dashboard.labels" . | nindent 4 }}
+spec:
+  # Ensure at least 50% of pods are available during disruptions
+  minAvailable: 50%
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Values.dashboard.name }}
+      app.kubernetes.io/instance: {{ .Release.Name }}

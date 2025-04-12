@@ -1,0 +1,178 @@
+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
+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
+aws secretsmanager create-secret \
+    --name github-token \
+    --description "GitHub Personal Access Token" \
+    --secret-string "{\"token\":\"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\"}"
+
+
+///////////////////////////////////////
+aws sts get-caller-identity
+aws eks update-kubeconfig --name dev-simetrik-eks-cluster-us1 --region us-east-1
+kubectl create namespace argocd
+kubectl create namespace simetrik
+kubectl wait --for=condition=Ready pods --all -n argocd
+// NO ALB
+kubectl port-forward svc/argocd-server -n argocd 8081:443
+// ALB ingress
+
+kubectl apply -f deployments/argocd/ingressclass.yaml
+kubectl apply -f deployments/argocd/ingress.yaml
+
+kubectl get ingress -n argocd argocd-server-ingress
+kubectl get ingress -n argocd argocd-server-ingress -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+
+
+kubectl apply -f https://raw.githubusercontent.com/aws/eks-charts/master/stable/aws-load-balancer-controller/crds/crds.yaml
+
+
+helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
+  -n kube-system \
+  --set clusterName=dev-simetrik-eks-cluster-us1 \
+  --set serviceAccount.create=false \
+  --set serviceAccount.name=aws-load-balancer-controller
+
+kubectl get pods -n kube-system | grep aws-load-balancer-controller
+
+kubectl get deployment -n kube-system aws-load-balancer-controller
+
+
+/////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////
+
+curl -O https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.5.4/docs/install/iam_policy.json
+
+aws iam create-policy \
+    --policy-name AWSLoadBalancerControllerIAMPolicy \
+    --policy-document file://iam_policy.json
+
+eksctl create iamserviceaccount \
+  --cluster=dev-simetrik-eks-cluster-us1 \
+  --namespace=kube-system \
+  --name=aws-load-balancer-controller \
+  --role-name AmazonEKSLoadBalancerControllerRole \
+  --attach-policy-arn=arn:aws:iam::294405308722:policy/AWSLoadBalancerControllerIAMPolicy \
+  --approve \
+  --region us-east-1
+
+kubectl get serviceaccount aws-load-balancer-controller -n kube-system
+
+helm uninstall aws-load-balancer-controller -n kube-system
+
+helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
+  -n kube-system \
+  --set clusterName=dev-simetrik-eks-cluster-us1 \
+  --set serviceAccount.create=false \
+  --set serviceAccount.name=aws-load-balancer-controller \
+  --set region=us-east-1
+
+kubectl get deployment -n kube-system aws-load-balancer-controller -w
+
+E> 
+aws eks describe-cluster --name dev-simetrik-eks-cluster-us1 --query "cluster.resourcesVpcConfig.vpcId" --output text
+VPC ID: vpc-06f21d0ed03c0fedc
+helm uninstall aws-load-balancer-controller -n kube-system
+
+helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
+  -n kube-system \
+  --set clusterName=dev-simetrik-eks-cluster-us1 \
+  --set serviceAccount.create=false \
+  --set serviceAccount.name=aws-load-balancer-controller \
+  --set region=us-east-1 \
+  --set vpcId=vpc-06f21d0ed03c0fedc
+
+
+kubectl describe ingress -n argocd argocd-server-ingress
+kubectl logs -n kube-system -l app.kubernetes.io/name=aws-load-balancer-controller
+
+//Create a certificate for the default ALB domain
+aws acm request-certificate \
+    --domain-name "*.elb.amazonaws.com" \
+    --validation-method DNS \
+    --region us-east-1
+
+arn:aws:acm:us-east-1:294405308722:certificate/ec0ea0f3-b6af-4fc2-ab61-615b1938ad5e
+
+
+
+//////////////////////////////////////////////////
+kubectl patch configmap argocd-cmd-params-cm -n argocd -p '{"data": {"server.insecure": "true"}}'
+kubectl rollout restart deployment argocd-server -n argocd
+
+5gwFz1GW8kDyI3UE
+
+
+argocd login k8s-semitrik-f6572afa53-1080837852.us-east-1.elb.amazonaws.com
+
+
+/////////////////////////////////////////////////////////
+
+helm repo add karpenter https://charts.karpenter.sh
+helm repo update
+kubectl create namespace karpenter
+ helm install karpenter karpenter/karpenter \
+  --namespace karpenter \
+  --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"="arn:aws:iam::294405308722:role/KarpenterControllerRole" \
+  --set clusterName=dev-simetrik-eks-cluster-us1 \
+  --set clusterEndpoint=6A61713108B184BDEB41E7B1A6B56D7F.gr7.us-east-1.eks.amazonaws.com \
+  --set aws.defaultInstanceProfile=KarpenterNodeInstanceProfile
+
+
+aws iam create-role \
+--role-name KarpenterControllerRole \
+--assume-role-policy-document '{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "pods.eks.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole",
+      "Condition": {
+        "StringEquals": {
+          "aws:SourceAccount": "294405308722",
+          "eks:cluster-name": "dev-simetrik-eks-cluster-us1"
+        }
+      }
+    }
+  ]
+}'
+
+aws iam attach-role-policy \
+  --role-name KarpenterControllerRole \
+  --policy-arn arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+
+aws iam attach-role-policy \
+  --role-name KarpenterControllerRole \
+  --policy-arn arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+
+aws iam create-instance-profile \
+  --instance-profile-name KarpenterNodeInstanceProfile
+
+aws iam create-role \
+  --role-name KarpenterNodeRole \
+  --assume-role-policy-document '{
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Principal": {
+          "Service": "ec2.amazonaws.com"
+        },
+        "Action": "sts:AssumeRole"
+      }
+    ]
+  }'
+
+aws iam attach-role-policy \
+  --role-name KarpenterNodeRole \
+  --policy-arn arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+
+aws iam attach-role-policy \
+  --role-name KarpenterNodeRole \
+  --policy-arn arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+
+aws iam add-role-to-instance-profile \
+  --instance-profile-name KarpenterNodeInstanceProfile \
+  --role-name KarpenterNodeRole

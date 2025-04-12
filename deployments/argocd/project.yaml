@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: simetrik
+  namespace: argocd
+spec:
+  description: Simetrik Application Project
+  destinations:
+  - namespace: simetrik
+    server: https://kubernetes.default.svc
+  - namespace: '*'
+    server: https://kubernetes.default.svc
+  sourceRepos:
+  - '*'
+  clusterResourceWhitelist:
+  - group: ''
+    kind: Namespace
+  - group: eks.amazonaws.com
+    kind: NodeClass
+  - group: karpenter.sh
+    kind: NodePool
+  namespaceResourceWhitelist:
+  - group: '*'
+    kind: '*'

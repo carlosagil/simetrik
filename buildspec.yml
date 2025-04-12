@@ -1,0 +1,128 @@
+version: 0.2
+
+env:
+  variables:
+    DOCKER_BUILDKIT: "1"
+    AWS_DEFAULT_REGION: "us-east-1"
+    AWS_ACCOUNT_ID: "294405308722"
+    DASHBOARD_ECR_REPO: "294405308722.dkr.ecr.us-east-1.amazonaws.com/simetrik-dashboard"
+    SERVER_ECR_REPO: "294405308722.dkr.ecr.us-east-1.amazonaws.com/simetrik-server"
+  secrets-manager:
+    GITHUB_TOKEN: "github-token:token"
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.9
+      nodejs: 16
+    commands:
+      # Install Helm
+      - curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+      - chmod 700 get_helm.sh
+      - ./get_helm.sh
+      # Install Python dependencies
+      - pip3 install PyGithub
+      # Install GitHub CLI
+      - sudo yum install -y yum-utils
+      - sudo yum remove -y gh || true
+      - sudo yum-config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo
+      - sudo yum install -y gh
+
+  pre_build:
+    commands:
+      # ECR Login
+      - aws ecr get-login-password --region ${AWS_DEFAULT_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com
+      # Set image tags
+      - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      - export IMAGE_TAG=${COMMIT_HASH:-latest}
+
+  build:
+    commands:
+      # Build and push images
+      - docker build -t ${DASHBOARD_ECR_REPO}:${IMAGE_TAG} -f src/dashboard_service/Dockerfile .
+      - docker push ${DASHBOARD_ECR_REPO}:${IMAGE_TAG}
+      - docker build -t ${SERVER_ECR_REPO}:${IMAGE_TAG} -f src/Dockerfile .
+      - docker push ${SERVER_ECR_REPO}:${IMAGE_TAG}
+
+      # Create values file
+      - |
+        cat > values.yaml << EOF
+        dashboard:
+          image:
+            repository: ${DASHBOARD_ECR_REPO}
+            tag: ${IMAGE_TAG}
+          topologySpread:
+            whenUnsatisfied: DoNotSchedule
+        server:
+          image:
+            repository: ${SERVER_ECR_REPO}
+            tag: ${IMAGE_TAG}
+          topologySpread:
+            whenUnsatisfied: DoNotSchedule
+        EOF
+
+      # Render Helm charts
+      - mkdir -p rendered-manifests
+      - helm template simetrik ./helm/simetrik -f values.yaml --output-dir rendered-manifests
+
+  post_build:
+    commands:
+      # Git configuration
+      - git config --global user.name "AWS CodeBuild"
+      - git config --global user.email "codebuild@example.com"
+
+      # GitHub authentication - using environment variable
+      - gh auth setup-git
+      - gh auth status
+
+      # GitOps workflow
+      - git clone https://${GITHUB_TOKEN}@github.com/carlosagil/simetrik-gitops.git
+      - cd simetrik-gitops
+      - git checkout -b update-${IMAGE_TAG}
+      - |
+        mkdir -p ./environments/dev
+        cp -r ../helm/simetrik/Chart.yaml ./environments/dev/Chart.yaml
+        cp ../values.yaml ./environments/dev/values.yaml
+        cp -r ../rendered-manifests/simetrik/* ./environments/dev/
+        cat > ./environments/dev/application.yaml << EOF
+        apiVersion: argoproj.io/v1alpha1
+        kind: Application
+        metadata:
+          name: simetrik-dev-us1
+          namespace: argocd
+        spec:
+          project: simetrik
+          source:
+            repoURL: 'https://github.com/carlosagil/simetrik-gitops.git'
+            path: environments/dev
+            targetRevision: HEAD
+            helm:
+              valueFiles:
+                - values.yaml
+          destination:
+            server: 'https://kubernetes.default.svc'
+            namespace: simetrik
+          clusterResourceWhitelist:
+            - group: '*'
+              kind: '*'
+          namespaceResourceWhitelist:
+            - group: '*'
+              kind: '*'
+          syncPolicy:
+            automated:
+              prune: true
+              selfHeal: true
+            syncOptions:
+              - CreateNamespace=true
+              - PruneLast=true
+            retry:
+              limit: 5
+              backoff:
+                duration: 5s
+                factor: 2
+                maxDuration: 3m
+        EOF
+      - git add .
+      - git commit -m "Update to ${IMAGE_TAG}"
+      - git push origin update-${IMAGE_TAG}
+      - gh pr create --title "Deploy ${IMAGE_TAG}" --body "Automated deployment" --base main

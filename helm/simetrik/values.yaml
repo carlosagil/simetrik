@@ -1,0 +1,259 @@
+global:
+  environment: development
+  namespace: simetrik
+  labels:
+    app.kubernetes.io/part-of: simetrik
+    environment: development
+    app.kubernetes.io/version: "1.0"
+    app.kubernetes.io/managed-by: helm
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+
+server:
+  name: server
+  namespace: simetrik
+  replicaCount: 2
+  image:
+    repository: 294405308722.dkr.ecr.us-east-1.amazonaws.com/simetrik-server
+    pullPolicy: IfNotPresent
+    tag: "latest"
+  
+  service:
+    type: ClusterIP
+    port: 50051
+    
+  # Optimized resource settings for better bin packing
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  
+  # Pod disruption budget settings
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 50%
+  
+  # Deployment strategy
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  
+  # Pod scheduling settings
+  scheduling:
+    topologySpreadConstraints:
+      enabled: true
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/
+      whenUnsatisfiable: DoNotSchedule
+    affinity:
+      enabled: true
+      podAntiAffinity:
+        weight: 100
+  
+  # Health check settings
+  probes:
+    liveness:
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 5
+      successThreshold: 1
+      failureThreshold: 3
+    readiness:
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 5
+      successThreshold: 1
+      failureThreshold: 3
+    startup:
+      enabled: true
+      failureThreshold: 30
+      periodSeconds: 10
+
+dashboard:
+  name: dashboard
+  namespace: simetrik
+  replicaCount: 1
+  image:
+    repository: 294405308722.dkr.ecr.us-east-1.amazonaws.com/simetrik-dashboard
+    pullPolicy: IfNotPresent
+    tag: "latest"
+  
+  service:
+    type: ClusterIP
+    ports:
+      - name: grpc
+        port: 50052
+        targetPort: 50052
+        protocol: TCP
+      - name: http
+        port: 3000
+        targetPort: 3000
+        protocol: TCP
+      - name: metrics
+        port: 8080
+        targetPort: 8080
+        protocol: TCP
+  
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 50%
+  
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  
+  scheduling:
+    topologySpreadConstraints:
+      enabled: true
+      maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: DoNotSchedule
+    affinity:
+      enabled: true
+      podAntiAffinity:
+        weight: 100
+  
+  probes:
+    liveness:
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 5
+      successThreshold: 1
+      failureThreshold: 3
+    readiness:
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 5
+      successThreshold: 1
+      failureThreshold: 3
+    startup:
+      enabled: true
+      failureThreshold: 30
+      periodSeconds: 10
+
+# Karpenter NodePool settings
+nodePool:
+  enabled: true
+  name: default
+  requirements:
+    # instanceFamilies:
+    #   - c6a  
+    #   - c6i
+    #   - c5a
+    #   - m6a  
+    #   - m6i
+    #   - m5a
+    instanceSizes:
+      - small    # 2 vCPU, 4 GiB RAM
+      - medium   # 2 vCPU, 8 GiB RAM
+      - large    # 2 vCPU, 16 GiB RAM
+    capacityTypes:
+      - spot
+      - on-demand # Fallback option
+    
+    # Exclude specific instance types that might be more expensive
+    instanceTypes:
+      - key: "karpenter.k8s.aws/instance-family"
+        operator: NotIn
+        values:
+          - t3
+          - t3a
+          - r6i  # Memory optimized (more expensive)
+          - r6a
+          - r5
+          - x2
+          - z1d
+  
+  # Node expiration and consolidation
+  disruption:
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: 30s
+    expireAfter: 720h  # 30 days
+  
+  # Resource limits for the entire node pool
+  limits:
+    cpu: "1000"
+    memory: 1000Gi
+
+# Node configuration
+nodeClass:
+  enabled: true
+  name: default
+  amiFamily: AL2
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 20Gi
+        volumeType: gp3
+        deleteOnTermination: true
+        iops: 3000
+        throughput: 125
+
+# Monitoring configuration
+serviceMonitor:
+  enabled: false
+  # Prometheus Operator settings
+  interval: 15s
+  scrapeTimeout: 10s
+  labels: {}
+
+# Common pod security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+# Common container security context
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+# Environment-specific configurations
+environments:
+  development:
+    server:
+      replicaCount: 2
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          cpu: 200m
+          memory: 256Mi
+    dashboard:
+      replicaCount: 1
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          cpu: 200m
+          memory: 256Mi
+    nodePool:
+      requirements:
+        instanceSizes:
+          - small
+          - medium
+

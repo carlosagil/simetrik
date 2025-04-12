@@ -1,0 +1,108 @@
+# Binaries and compiled files
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.pb.go
+*.pb.gw.go
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Dependency directories
+vendor/
+/vendor/
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Environment files
+.env
+.env.local
+*.env
+
+# Build output directories
+bin/
+dist/
+build/
+
+# Debug files
+debug/
+
+# Log files
+*.log
+
+# Temporary files
+tmp/
+temp/
+
+# Generated protobuf files (if you generate them elsewhere)
+gen/
+
+# Local development configurations
+config.local.yaml
+*.local.yml
+
+# System Files
+Thumbs.db
+.DS_Store
+
+# Go specific
+go.work
+go.work.sum
+
+# If you're using any local certificates for development
+*.pem
+*.key
+*.crt
+
+# If you have any local development scripts
+scripts/local/
+
+# Terraform specific
+# Local .terraform directories
+**/.terraform/*
+
+# .tfstate files
+*.tfstate
+*.tfstate.*
+
+# Terraform variable files (may contain sensitive values)
+*.tfvars
+*.tfvars.json
+
+# Terraform override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Terraform CLI configuration files
+.terraformrc
+terraform.rc
+
+# Terraform plan output files
+*.tfplan
+
+# Crash log files
+crash.log
+crash.*.log
+
+# Exclude all .tfvars files, which are likely to contain sensitive data
+*.tfvars
+*.tfvars.json
+
+# Ignore CLI configuration files
+.terraformrc
+terraform.rc
+
+# Ignore lock files
+.terraform.lock.hcl

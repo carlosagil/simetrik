@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.server.name }}
+  labels:
+    {{- include "simetrik.server.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.server.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Values.server.name }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Values.server.name }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+      annotations:
+        # Enable automatic Spot interruption handling
+        "karpenter.sh/do-not-evict": "false"
+    spec:
+      # Graceful termination period
+      terminationGracePeriodSeconds: 30
+      # Topology spread for high availability
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfied:  {{ .Values.server.topologySpread.whenUnsatisfied | default "DoNotSchedule" }}
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ .Values.server.name }}
+      # Pod anti-affinity for better distribution
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: {{ .Values.server.name }}
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: {{ .Values.server.name }}
+          image: "{{ .Values.server.image.repository }}:{{ .Values.server.image.tag }}"
+          imagePullPolicy: {{ .Values.server.image.pullPolicy }}
+          ports:
+            - name: grpc
+              containerPort: {{ .Values.server.service.port }}
+              protocol: TCP
+          resources:
+            {{- toYaml .Values.server.resources | nindent 12 }}
+          # Faster health checks for quicker pod replacement
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.server.service.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.server.service.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 10"]
