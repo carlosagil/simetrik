@@ -20,7 +20,11 @@ server:
   
   service:
     type: ClusterIP
-    port: 50051
+    ports:
+      - name: grpc
+        port: 5051
+        targetPort: 5051
+        protocol: TCP
     
   # Optimized resource settings for better bin packing
   resources:
@@ -256,4 +260,27 @@ environments:
         instanceSizes:
           - small
           - medium
-
+ingress:
+  enabled: true
+  name: simetrik-alb
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
+    alb.ingress.kubernetes.io/conditions.grpc: |
+      [{"field":"path-pattern","pathPatternConfig":{"values":["/grpc/*"]}}]
+    alb.ingress.kubernetes.io/backend-protocol.grpc: GRPC
+    alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+    alb.ingress.kubernetes.io/healthcheck-port: traffic-port
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+  paths:
+    - path: /dashboard/*
+      pathType: Prefix
+      serviceName: dashboard
+      servicePort: 3000
+    - path: /grpc/*
+      pathType: Prefix
+      serviceName: server
+      servicePort: 50051

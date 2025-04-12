@@ -1,7 +1,7 @@
 variable "cluster_version" {
   description = "Version of the EKS cluster"
   type        = string
-  default     = "1.31"
+  default     = "1.32"
 }
 
 variable "env" {
@@ -18,4 +18,10 @@ variable "subnet_ids" {
 variable "vpc_id" {
   description = "ID of the VPC to associate with the cluster"
   type        = string
+}
+
+variable "ami_release_version" {
+  description = "Default EKS AMI release version for node groups"
+  type        = string
+  default     = "1.32.1-20250403"
 }

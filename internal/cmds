@@ -176,3 +176,50 @@ aws iam attach-role-policy \
 aws iam add-role-to-instance-profile \
   --instance-profile-name KarpenterNodeInstanceProfile \
   --role-name KarpenterNodeRole
+
+
+helm upgrade --install karpenter karpenter/karpenter \
+  --namespace karpenter --create-namespace \
+  --version 0.37.0 \
+  -f deployments/values.yaml
+
+
+helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter \
+  --version "1.3.3" \
+  --namespace "karpenter" --create-namespace \
+  --set "settings.clusterName=dev-simetrik-eks-cluster-us1" \
+  --set "settings.interruptionQueue=https://sqs.us-east-1.amazonaws.com/294405308722/dev-simetrik-eks-cluster-us1-karpenter" \
+  --set controller.resources.requests.cpu=1 \
+  --set controller.resources.requests.memory=1Gi \
+  --set controller.resources.limits.cpu=1 \
+  --set controller.resources.limits.memory=1Gi \
+  --set-json controller.topologySpreadConstraints='[]'  \
+  --set replicas=1 \
+  --wait
+
+
+helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter \
+  --version "1.3.3" \
+  --namespace "karpenter" --create-namespace \
+  --set "settings.clusterName=dev-simetrik-eks-cluster-us1" \
+  --set "settings.interruptionQueue=https://sqs.us-east-1.amazonaws.com/294405308722/dev-simetrik-eks-cluster-us1-karpenter" \
+  --set controller.resources.requests.cpu=1 \
+  --set controller.resources.requests.memory=1Gi \
+  --set controller.resources.limits.cpu=1 \
+  --set controller.resources.limits.memory=1Gi \
+  --set controller.disableTopologySpreadConstraints=true \
+  --set replicas=1 \
+  --wait
+
+  kubectl describe pod karpenter-5bf56bc666-zbmjq  -n karpenter
+
+
+helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter \
+  --version "1.3.3" \
+  --namespace "karpenter" --create-namespace \
+  --values deployments/karpenter-values.yaml \
+  --wait
+
+
+kubectl get pod karpenter-6894b99676-s5q27 -n karpenter -o yaml
+

@@ -1,0 +1,22 @@
+settings:
+  clusterName: dev-simetrik-eks-cluster-us1
+  interruptionQueue: "https://sqs.us-east-1.amazonaws.com/294405308722/dev-simetrik-eks-cluster-us1-karpenter"
+controller:
+  resources:
+    requests:
+      cpu: 1
+      memory: 1Gi
+    limits:
+      cpu: 1
+      memory: 1Gi
+  topologySpreadConstraints: []
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: topology.kubernetes.io/zone
+                operator: In
+                values:
+                  - us-east-1c
+replicas: 1

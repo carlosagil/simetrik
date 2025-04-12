@@ -1,0 +1,10 @@
+controller:
+  clusterName: dev-simetrik-eks-cluster-us1
+  clusterEndpoint: 6A61713108B184BDEB41E7B1A6B56D7F.gr7.us-east-1.eks.amazonaws.com
+  serviceAccount:
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::294405308722:role/KarpenterControllerRole
+
+settings:
+  aws:
+    defaultInstanceProfile: KarpenterNodeInstanceProfile
